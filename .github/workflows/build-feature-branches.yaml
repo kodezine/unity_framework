@@ -1,0 +1,115 @@
+name: build_branches
+
+on:
+  push:
+      branches-ignore:
+      - main
+  pull_request:
+      types: [synchronize]
+
+#cancel running jobs if new build is started
+concurrency:
+  group: build_branches-${{ github.ref }}-1
+  cancel-in-progress: true
+
+jobs:
+  # pre-condition check to avoid pipelines being triggered for PR and push in parallel
+  pre_job:
+    runs-on: self-hosted
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v5
+        with:
+          cancel_others: true
+          concurrent_skipping: 'same_content'
+          skip_after_successful_duplicate: 'true'
+          # we want to have only the PRs running if there is a push to an open PR
+          do_not_skip: '["pull_request", "workflow_dispatch"]'
+  build:
+    runs-on: self-hosted
+    strategy:
+      # visualize which variants fail and pass to derive upstream dependency status
+      fail-fast: false
+      matrix:
+        configs: [
+          debug-armgcc
+        ]
+    steps:
+    - uses: actions/checkout@v4
+    - name: cmake_configure
+      # env:
+      #  LLVM_CLANG_ROOT_FOLDER: /home/
+      run: |
+        cmake --preset ${{ matrix.configs }}
+    - name: cmake_build
+      # env:
+      #  ARM_GCC_ROOT_FOLDER: /home/build/gcc_arm
+      run: |
+        mkdir compiler_output -p
+        cmake --build --preset ${{ matrix.configs }}  2>&1 | tee -a compiler_output/${{ matrix.configs }}.txt
+    - name: Archive artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build
+        path: |
+          build/**/*.out
+          build/**/*.elf
+          build/**/*.map
+          build/**/*.lst
+          build/**/*.json
+          !build/_deps/**
+          !build/**/CMakeCache.txt
+          !build/**/CMakeFiles
+        retention-days: 5
+    - name: Filter out warnings that are on dependencies
+      run: |
+        sed -i '/.*\/_deps\/.*\swarning:/d' compiler_output/${{ matrix.configs }}.txt
+    - name: Post PR comment for warnings/errors
+      if: always()
+      uses: JacobDomagala/CompileResult@v0.0.2
+      with:
+        comment_title: Compiler warnings for ${{ matrix.configs}}
+        compile_result_file: compiler_output/${{ matrix.configs }}.txt
+  test:
+    needs: pre_job
+    if: needs.pre_job.outputs.should_skip != 'true'
+    runs-on: self-hosted
+    strategy:
+      fail-fast: true
+      matrix:
+        configs: [debug-test-hostcc]
+    steps:
+    - uses: actions/checkout@v4
+    - name: cmake_configure_test
+      run: |
+        cmake --preset ${{ matrix.configs }}
+    - name: cmake_build_test
+      id: build_tests
+      run: |
+        mkdir compiler_output -p
+        cmake --build --preset ${{ matrix.configs }} 2>&1 | tee -a compiler_output/${{ matrix.configs }}.txt
+    - name: ctest_run
+      run: |
+        cmake --build --preset ${{ matrix.configs }} --target test
+      if: matrix.configs == 'debug-test-hostcc'  # used to run just one time
+    - name: Filter out warnings that are on dependencies
+      run: |
+        sed -i '/.*\/_deps\/.*\swarning:/d' compiler_output/${{ matrix.configs }}.txt
+    - name: Post PR comment for warnings/errors
+      uses: JacobDomagala/CompileResult@v0.0.2
+      with:
+        comment_title: Compiler warnings in test-build for ${{ matrix.configs}}
+        compile_result_file: compiler_output/${{ matrix.configs }}.txt
+    - name: Compute coverage
+      run: |
+        gcovr --xml-pretty > coverage_report.xml
+      if: matrix.configs == 'debug-test-hostcc'  # used to run just one time
+    - uses: 5monkeys/cobertura-action@master
+      with:
+        path: coverage_report.xml
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        minimum_coverage: 10
+        skip_covered: false
+      if: matrix.configs == 'debug-test-hostcc'  # used to run just one time

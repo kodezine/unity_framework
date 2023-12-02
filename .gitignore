@@ -1,52 +1,18 @@
-# Prerequisites
-*.d
+# CMAKE specific excludes
+[bB]uild
+CMakeUserPresets.json
+# CTestConfig.cmake
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+# Project specific excludes
+.mxproject
+.DS_Store
 
-# Linker output
-*.ilk
-*.map
-*.exp
+# Ignore eclipse base project managers
+.cproject
+.project
 
-# Precompiled Headers
-*.gch
-*.pch
+# Ignore the container customization
+.devcontainer/devcontainer.json
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+# Editor specific stuff
+.vscode

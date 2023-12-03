@@ -34,7 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         configs: [
-          debug-armgcc
+          debug-test-hostcc
         ]
     steps:
     - uses: actions/checkout@v4

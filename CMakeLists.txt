@@ -21,4 +21,6 @@ project(unity_framework
     DESCRIPTION "unity framework demo"
 )
 
+include(cmake/adder.cmake)
+
 include(${cmake_scripts_SOURCE_DIR}/frameworks/unity/unity.cmake)
